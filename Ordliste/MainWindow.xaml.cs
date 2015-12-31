@@ -16,6 +16,7 @@ namespace Ordliste
         public MainWindow()
         {
             InitializeComponent();
+            this.lettersTextBox.Focus();
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
@@ -29,7 +30,7 @@ namespace Ordliste
         private void FindCandidates(ListBox sourceListBox)
         {
             var letters = new string(lettersTextBox.Text.ToLower().Trim().OrderBy(l => l).ToArray());
-            SimpleLookup<int, string> dictionary = wordList ?? (wordList = ReadWordList());
+            SimpleLookup<int, string> lookup = wordList ?? (wordList = ReadWordList());
 
             if (sourceListBox != null && sourceListBox.SelectedItem != null)
             {
@@ -44,25 +45,46 @@ namespace Ordliste
 
             IEnumerable<int> lengths = lengthTextBox.Text.Split(' ', ',').Select(p => p.Trim()).Select(int.Parse);
             var listBoxs = new[] {listBox, listBox2, listBox3};
+            var textBoxs = new[] {textBox0, textBox1, textBox2};
             int ix = 0;
             foreach (int length in lengths)
             {
                 if (listBoxs[ix] != sourceListBox)
                 {
                     listBoxs[ix].Items.Clear();
-                    foreach (string word in dictionary[length].Where(w => WordMatch(w, letters)))
-                        listBoxs[ix].Items.Add(word);
+                    foreach (string word in lookup[length].Where(w => WordMatch(w, letters)))
+                    {
+                        var exclude = textBoxs[ix].Text.ToLower();
+                        bool include = true;
+                        if (exclude.Length == length)
+                        {
+                            for (int j=0; j<length; j++)
+                            {
+                                if (exclude[j] != '_' && exclude[j]!=word[j])
+                                {
+                                    include = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (include)
+                            listBoxs[ix].Items.Add(word);
+                    }
                 }
                 ix++;
             }
+
+            if (sourceListBox == null && lengths.Count()>1)
+            {                
+                //todo fjern ord som ikke gir muligherer for andre ord
+            }
+            
         }
 
-        private static bool WordMatch(string w, string letters)
+        private static bool WordMatch(string word, string letters)
         {
-            //return w.OrderBy(_ => _).SequenceEqual(letters);
-            if (!w.All(letters.Contains))
-                return false;
-            Dictionary<char, int> wCount = w.GroupBy(_ => _).ToDictionary(_ => _.Key, _ => _.Count());
+            if (!word.All(letters.Contains))  return false;
+            Dictionary<char, int> wCount = word.GroupBy(_ => _).ToDictionary(_ => _.Key, _ => _.Count());
             Dictionary<char, int> lCount = letters.GroupBy(_ => _).ToDictionary(_ => _.Key, _ => _.Count());
             return wCount.All(pair => lCount[pair.Key] >= pair.Value);
         }
@@ -74,8 +96,10 @@ namespace Ordliste
                 while (!file.EndOfStream)
                 {
                     string line = file.ReadLine();
-                    string word = line.Split(' ')[0].ToLower();
-                    lookup.Add(word.Length, word);
+                    var split = line.Split(' ');
+                    string word = split[0].ToLower();
+                   // if (split[1] == "subst")  //bare substantiv
+                        lookup.Add(word.Length, word);
                 }
             return lookup;
         }
